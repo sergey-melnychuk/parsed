@@ -1,0 +1,8 @@
+[package]
+name = "parser-combinators"
+version = "0.1.0"
+authors = ["sergey-melnychuk"]
+edition = "2018"
+
+[dependencies]
+
