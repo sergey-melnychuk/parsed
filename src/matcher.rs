@@ -16,6 +16,18 @@ pub fn chain<T: 'static, U: 'static>(
     })
 }
 
+pub fn expose<T: 'static, U: 'static, F: Fn(&T) -> Box<Matcher<U>> + 'static>(
+    this: Box<Matcher<T>>,
+    f: F,
+) -> Box<Matcher<(T, U)>> {
+    Box::new(move |bs| {
+        let t = (*this)(bs)?;
+        let g = f(&t);
+        let u = (*g)(bs)?;
+        Ok((t, u))
+    })
+}
+
 pub fn apply<T: 'static, U: 'static, F: Fn(&mut T, U) + 'static>(
     this: Box<Matcher<(T, U)>>,
     f: F,
