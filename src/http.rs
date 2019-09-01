@@ -88,6 +88,11 @@ fn request_parser() -> Parser<Request> {
         .save(|req, vec| req.headers = vec)
         .then(single('\n'))
         .skip()
+        .then_with(|req| {
+            let n: usize = get_content_length(req).unwrap_or(0);
+            bytes(n)
+        })
+        .save(|req, content| req.content = content)
 }
 
 fn get_header_value(req: &Request, name: String) -> Option<String> {
@@ -98,7 +103,8 @@ fn get_header_value(req: &Request, name: String) -> Option<String> {
 }
 
 fn get_content_length(req: &Request) -> Option<usize> {
-    get_header_value(req, "Content-Length".to_string()).map(|v| v.parse::<usize>().unwrap())
+    get_header_value(req, "Content-Length".to_string())
+        .map(|len| len.parse::<usize>().unwrap_or(0))
 }
 
 fn content_parser(len: usize) -> Parser<Vec<u8>> {
@@ -106,21 +112,10 @@ fn content_parser(len: usize) -> Parser<Vec<u8>> {
 }
 
 fn parse_http_request(stream: &mut ByteStream) -> Option<Request> {
-    let req_opt: Option<Request> = stream
+    stream
         .apply(request_parser())
         .map(|r| Some(r))
-        .unwrap_or_else(|_| None);
-
-    let content: Vec<u8> = req_opt
-        .iter()
-        .flat_map(|r| get_content_length(r))
-        .flat_map(|len| stream.apply(content_parser(len)).unwrap_or_else(|_| vec![]))
-        .collect();
-
-    req_opt.map(|mut req| {
-        req.content = content;
-        req
-    })
+        .unwrap_or_else(|_| None)
 }
 
 #[cfg(test)]
