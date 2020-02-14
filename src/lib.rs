@@ -1,5 +1,5 @@
-mod stream;
-mod matcher;
-mod parser;
-mod http;
-mod ws;
+pub mod stream;
+pub mod matcher;
+pub mod parser;
+pub mod http;
+pub mod ws;
