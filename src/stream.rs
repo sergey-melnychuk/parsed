@@ -2,6 +2,7 @@ pub struct Mark {
     pos: usize,
 }
 
+#[derive(Debug)]
 pub struct ByteStream {
     buf: Vec<u8>,
     pos: usize,
@@ -70,6 +71,11 @@ impl ByteStream {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.pos = 0;
+        self.buf.clear();
+    }
+
     // drop bytes before current read position, allows more bytes to be put into the buffer
     pub fn pull(&mut self) {
         if self.pos > 0 && self.len() > 0 {
@@ -94,6 +100,12 @@ impl ByteStream {
             .windows(w)
             .position(f)
             .map(|idx| idx + self.pos)
+    }
+}
+
+impl AsRef<[u8]> for ByteStream {
+    fn as_ref(&self) -> &[u8] {
+        &self.buf[self.pos..]
     }
 }
 

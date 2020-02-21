@@ -3,7 +3,8 @@ use crate::stream::{ByteStream, ToStream};
 use std::ops::Add;
 
 fn as_string(bytes: Vec<u8>) -> String {
-    bytes.into_iter().map(|b| b as char).collect()
+    let s: String = bytes.into_iter().map(|b| b as char).collect();
+    s.trim().parse().unwrap()
 }
 
 #[derive(Debug)]
@@ -23,12 +24,12 @@ fn header_parser() -> Parser<Header> {
         .map(|(vec, _)| vec)
         .then(single(' '))
         .map(|(vec, _)| vec)
-        .then(before('\n'))
+        .then(before('\r'))
         .map(|(mut vec, val)| {
             vec.push(as_string(val));
             vec
         })
-        .then(single('\n'))
+        .then(exact(&[b'\r', b'\n']))
         .map(|(vec, _)| vec)
         .map(|vec| Header {
             name: vec[0].to_owned(),
@@ -37,7 +38,7 @@ fn header_parser() -> Parser<Header> {
 }
 
 #[derive(Debug, Default)]
-struct Request {
+pub struct Request {
     method: String,
     path: String,
     protocol: String,
@@ -46,7 +47,7 @@ struct Request {
 }
 
 #[derive(Debug)]
-struct Response {
+pub struct Response {
     protocol: String,
     code: u16,
     message: String,
@@ -61,11 +62,11 @@ impl Into<String> for Response {
             .into_iter()
             .map(|h| format!("{}: {}", h.name, h.value))
             .collect::<Vec<String>>()
-            .join("\n");
+            .join("\r\n");
         let content = as_string(self.content);
-        format!("{} {} {}\n", self.protocol, self.code, self.message)
+        format!("{} {} {}\r\n", self.protocol, self.code, self.message)
             .add(&headers)
-            .add("\n\n")
+            .add("\r\n\r\n")
             .add(&content)
     }
 }
@@ -80,14 +81,19 @@ fn request_parser() -> Parser<Request> {
         .save(|req, bytes| req.path = as_string(bytes))
         .then(single(' '))
         .skip()
-        .then(before('\n'))
+        .then(before('\r'))
         .save(|req, bytes| req.protocol = as_string(bytes))
-        .then(single('\n'))
+        .then(exact(&[b'\r', b'\n']))
         .skip()
         .then(repeat(header_parser().into()))
         .save(|req, vec| req.headers = vec)
-        .then(single('\n'))
+        .then(exact(&[b'\r', b'\n']))
         .skip()
+        .then_with(|req| {
+            let n: usize = get_content_length(req).unwrap_or(0);
+            bytes(n)
+        })
+        .save(|req, content| req.content = content)
 }
 
 fn get_header_value(req: &Request, name: String) -> Option<String> {
@@ -98,29 +104,19 @@ fn get_header_value(req: &Request, name: String) -> Option<String> {
 }
 
 fn get_content_length(req: &Request) -> Option<usize> {
-    get_header_value(req, "Content-Length".to_string()).map(|v| v.parse::<usize>().unwrap())
+    get_header_value(req, "Content-Length".to_string())
+        .map(|len| len.parse::<usize>().unwrap_or(0))
 }
 
 fn content_parser(len: usize) -> Parser<Vec<u8>> {
     Parser::unit(bytes(len))
 }
 
-fn parse_http_request(stream: &mut ByteStream) -> Option<Request> {
-    let req_opt: Option<Request> = stream
+pub fn parse_http_request(stream: &mut ByteStream) -> Option<Request> {
+    stream
         .apply(request_parser())
         .map(|r| Some(r))
-        .unwrap_or_else(|_| None);
-
-    let content: Vec<u8> = req_opt
-        .iter()
-        .flat_map(|r| get_content_length(r))
-        .flat_map(|len| stream.apply(content_parser(len)).unwrap_or_else(|_| vec![]))
-        .collect();
-
-    req_opt.map(|mut req| {
-        req.content = content;
-        req
-    })
+        .unwrap_or_else(|_| None)
 }
 
 #[cfg(test)]
@@ -128,17 +124,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn http_request() {
-        let text = r#"GET /docs/index.html HTTP/1.1
-Host: www.nowhere123.com
-Accept: image/gif, image/jpeg, */*
-Accept-Language: en-us
-Accept-Encoding: gzip, deflate
-Content-Length: 8
-User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)
+    fn curl_request() {
+        let text = "GET / HTTP/1.1\r\nHost: localhost:9000\r\nUser-Agent: curl/7.64.1\r\nAccept: */*\r\n\r\n";
+        let mut bs = text.to_string().into_stream();
+        let req_opt = parse_http_request(&mut bs);
+        let req = req_opt.unwrap();
 
-0123456
-"#;
+        assert_eq!(req.method, "GET");
+        assert_eq!(req.path, "/");
+        assert_eq!(req.protocol, "HTTP/1.1");
+        assert_eq!(req.headers[0].name, "Host");
+        assert_eq!(req.headers[0].value, "localhost:9000");
+        assert_eq!(req.headers[1].name, "User-Agent");
+        assert_eq!(req.headers[1].value, "curl/7.64.1");
+        assert_eq!(req.headers[2].name, "Accept");
+        assert_eq!(req.headers[2].value, "*/*");
+        assert!(req.content.is_empty());
+    }
+
+    #[test]
+    fn http_request() {
+        let text = "GET /docs/index.html HTTP/1.1\r\nHost: www.nowhere123.com\r\nAccept: image/gif, image/jpeg, */*\r\nAccept-Language: en-us\r\nAccept-Encoding: gzip, deflate\r\nContent-Length: 8\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)\r\n\r\n0123456\n";
         let mut bs = text.to_string().into_stream();
         let req_opt = parse_http_request(&mut bs);
         let req = req_opt.unwrap();
@@ -166,14 +172,7 @@ User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)
 
     #[test]
     fn http_upgrade() {
-        let text = r#"GET /chat HTTP/1.1
-Host: example.com:8000
-Upgrade: websocket
-Connection: Upgrade
-Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
-Sec-WebSocket-Version: 13
-
-"#;
+        let text = "GET /chat HTTP/1.1\r\nHost: example.com:8000\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n";
         let mut bs = text.to_string().into_stream();
         let req_opt = bs.apply(request_parser());
         let req = req_opt.unwrap();
@@ -202,15 +201,15 @@ Sec-WebSocket-Version: 13
             message: "OK".to_string(),
             headers: vec![Header {
                 name: "Content-Length".to_string(),
-                value: "6".to_string(),
+                value: "5".to_string(),
             }],
-            content: b"hello\n".to_vec(),
+            content: b"hello".to_vec(),
         };
 
         let out: String = res.into();
         assert_eq!(
             out,
-            "HTTP/1.1 200 OK\nContent-Length: 6\n\nhello\n".to_string()
+            "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello".to_string()
         );
     }
 }

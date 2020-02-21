@@ -1,5 +1,5 @@
 use crate::stream::{ByteStream, ToStream};
-use crate::matcher::MatchError;
+use crate::matcher::{MatchError, expose};
 use crate::matcher::{apply, unit, chain, map, Matcher};
 
 pub struct Parser<T> {
@@ -35,6 +35,11 @@ impl<T: 'static> Parser<T> {
         f: F,
     ) -> Parser<V> {
         Parser::unit(map(chain(self.f, that), f))
+    }
+
+    // This is something similar to flat_map
+    pub fn then_with<U: 'static, F: Fn(&T) -> Box<Matcher<U>> + 'static>(self, f: F) -> Parser<(T, U)> {
+        Parser::unit(expose(self.f, f))
     }
 }
 
