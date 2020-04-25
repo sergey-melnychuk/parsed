@@ -3,8 +3,10 @@ use crate::stream::{ByteStream, ToStream};
 use std::ops::Add;
 
 fn as_string(bytes: Vec<u8>) -> String {
-    let s: String = bytes.into_iter().map(|b| b as char).collect();
-    s.trim().parse().unwrap()
+    // Consider changing to: std::str::from_utf8(&[u8]) -> Result<&str>
+    // Note: from_utf8 can fail for invalid UTF-8 codes
+    // Line below won't fail, but will provide incorrect result
+    bytes.into_iter().map(|b| b as char).collect::<String>()
 }
 
 #[derive(Debug)]
