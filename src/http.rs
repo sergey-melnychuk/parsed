@@ -8,9 +8,9 @@ fn as_string(bytes: Vec<u8>) -> String {
 }
 
 #[derive(Debug)]
-struct Header {
-    name: String,
-    value: String,
+pub struct Header {
+    pub name: String,
+    pub value: String,
 }
 
 fn header_parser() -> Parser<Header> {
@@ -39,20 +39,20 @@ fn header_parser() -> Parser<Header> {
 
 #[derive(Debug, Default)]
 pub struct Request {
-    method: String,
-    path: String,
-    protocol: String,
-    headers: Vec<Header>,
-    content: Vec<u8>,
+    pub method: String,
+    pub path: String,
+    pub protocol: String,
+    pub headers: Vec<Header>,
+    pub content: Vec<u8>,
 }
 
 #[derive(Debug)]
 pub struct Response {
-    protocol: String,
-    code: u16,
-    message: String,
-    headers: Vec<Header>,
-    content: Vec<u8>,
+    pub protocol: String,
+    pub code: u16,
+    pub message: String,
+    pub headers: Vec<Header>,
+    pub content: Vec<u8>,
 }
 
 impl Into<String> for Response {
