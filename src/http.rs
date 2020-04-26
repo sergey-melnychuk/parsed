@@ -2,7 +2,7 @@ use crate::parser::{before, bytes, exact, repeat, single, token, Applicator, Par
 use crate::stream::{ByteStream, ToStream};
 use std::ops::Add;
 
-fn as_string(bytes: Vec<u8>) -> String {
+pub fn as_string(bytes: Vec<u8>) -> String {
     // Consider changing to: std::str::from_utf8(&[u8]) -> Result<&str>
     // Note: from_utf8 can fail for invalid UTF-8 codes
     // Line below won't fail, but will provide incorrect result
