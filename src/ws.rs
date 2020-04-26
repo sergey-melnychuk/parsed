@@ -156,24 +156,24 @@ mod tests {
 
     #[test]
     fn opts() {
-        let bytes: Vec<u8> = vec![128 + 32, 128 + 3];
+        let bytes: Vec<u8> = vec![128 + 3, 128 + 3];
         let mut stream = ByteStream::wrap(bytes);
         let opts = stream.apply(frame_opts()).unwrap();
         assert_eq!(opts.fin, true);
-        assert_eq!(opts.code, 32);
+        assert_eq!(opts.code, 3);
         assert_eq!(opts.mask, true);
         assert_eq!(opts.len, 3);
     }
 
     #[test]
     fn frame1() {
-        let bytes: Vec<u8> = vec![128 + 32, 128 + 7, 1, 2, 3, 4, 10, 11, 12, 13, 14, 15, 16];
+        let bytes: Vec<u8> = vec![128 + 9, 128 + 7, 1, 2, 3, 4, 10, 11, 12, 13, 14, 15, 16];
         let mut stream = ByteStream::wrap(bytes);
         let opt = parse_frame(&mut stream);
         assert!(opt.is_some());
         let frame = opt.unwrap();
         assert!(frame.fin);
-        assert_eq!(frame.opcode, 32);
+        assert_eq!(frame.opcode, 9);
         assert_eq!(frame.len, 7);
         assert_eq!(frame.mask, Some([1, 2, 3, 4]));
         assert_eq!(frame.body, vec![10, 11, 12, 13, 14, 15, 16]);
@@ -181,13 +181,13 @@ mod tests {
 
     #[test]
     fn frame2() {
-        let bytes: Vec<u8> = vec![31, 3, 10, 20, 30];
+        let bytes: Vec<u8> = vec![15, 3, 10, 20, 30];
         let mut stream = ByteStream::wrap(bytes);
         let opt = parse_frame(&mut stream);
         assert!(opt.is_some());
         let frame = opt.unwrap();
         assert!(!frame.fin);
-        assert_eq!(frame.opcode, 31);
+        assert_eq!(frame.opcode, 15);
         assert_eq!(frame.len, 3);
         assert_eq!(frame.mask, None);
         assert_eq!(frame.body, vec![10, 20, 30]);
