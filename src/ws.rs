@@ -1,21 +1,3 @@
-/*
-https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_servers
-
-GET /chat HTTP/1.1
-Host: example.com:8000
-Upgrade: websocket
-Connection: Upgrade
-Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
-Sec-WebSocket-Version: 13
-
-HTTP/1.1 101 Switching Protocols
-Upgrade: websocket
-Connection: Upgrade
-Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=
-
-Response['Sec-WebSocket-Accept'] = base64(sha1( Request['Sec-WebSocket-Key'] + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" ))
-*/
-
 use crate::parser::{Parser, bytes, Applicator};
 use crate::stream::ByteStream;
 
@@ -26,6 +8,14 @@ struct Frame {
     len: u32,
     mask: Option<[u8; 4]>,
     body: Vec<u8>,
+}
+
+fn decode_frame_body(body: &Vec<u8>, mask: &[u8; 4]) -> Vec<u8> {
+    let mut decoded = body.clone();
+    for i in 0..body.len() {
+        decoded[i] = body[i] ^ mask[i % 4];
+    }
+    decoded
 }
 
 fn frame_opts() -> Parser<FrameOpts> {
@@ -70,15 +60,15 @@ fn parse_frame(stream: &mut ByteStream) -> Option<Frame> {
 
     stream.apply(p4)
         .map(|x| Some(x))
-        .unwrap_or_else(|_| None)
+        .unwrap_or_default()
 }
 
 fn build_u16(vec: Vec<u8>) -> u16 {
-    vec.into_iter().fold(0 as u16, |acc, b| acc << 8 + b)
+    vec.into_iter().fold(0 as u16, |acc, b| acc << 8 + b as u16)
 }
 
 fn build_u64(vec: Vec<u8>) -> u64 {
-    vec.into_iter().fold(0 as u64, |acc, b| acc << 8 + b)
+    vec.into_iter().fold(0 as u64, |acc, b| acc << 8 + b as u64)
 }
 
 #[derive(Default)]
@@ -168,4 +158,18 @@ mod tests {
         assert_eq!(frame.body, vec![10, 20, 30]);
     }
 
+    #[test]
+    fn frame_hello() {
+        let expected = "hello!";
+        let bytes: Vec<u8> = vec![129, 134, 87, 35, 230, 82, 63, 70, 138, 62, 56, 2];
+        let mut stream = ByteStream::wrap(bytes);
+        let opt = parse_frame(&mut stream);
+        assert!(opt.is_some());
+        let frame = opt.unwrap();
+        assert!(frame.fin);
+        assert_eq!(frame.opcode, 1);
+        assert_eq!(frame.len, expected.len() as u32);
+        assert_eq!(frame.mask, Some([87, 35, 230, 82]));
+        assert_eq!(decode_frame_body(&frame.body, &frame.mask.unwrap()), expected.as_bytes());
+    }
 }
