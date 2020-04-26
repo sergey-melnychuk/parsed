@@ -2,20 +2,50 @@ use crate::parser::{Parser, bytes, Applicator};
 use crate::stream::ByteStream;
 
 #[derive(Debug)]
-struct Frame {
-    fin: bool,
-    opcode: u8,
-    len: u32,
-    mask: Option<[u8; 4]>,
-    body: Vec<u8>,
+pub struct Frame {
+    pub fin: bool,
+    pub opcode: u8,
+    pub len: u32,
+    pub mask: Option<[u8; 4]>,
+    pub body: Vec<u8>,
 }
 
-fn decode_frame_body(body: &Vec<u8>, mask: &[u8; 4]) -> Vec<u8> {
+impl Frame {
+    pub fn text(body: &str) -> Frame {
+        Frame {
+            fin: true,
+            opcode: 1, // 0 - continuation, 1 - text, 2 - binary
+            len: body.len() as u32,
+            mask: None,
+            body: body.as_bytes().to_vec(),
+        }
+    }
+}
+
+pub fn decode_frame_body(body: &Vec<u8>, mask: &[u8; 4]) -> Vec<u8> {
     let mut decoded = body.clone();
     for i in 0..body.len() {
         decoded[i] = body[i] ^ mask[i % 4];
     }
     decoded
+}
+
+impl Into<Vec<u8>> for Frame {
+    fn into(self) -> Vec<u8> {
+        let mut stream = ByteStream::with_capacity(self.body.len() + 26);
+        let byte1 = ((if self.fin { 1u8 } else { 0u8 }) << 7) + self.opcode;
+        stream.put(&[byte1]);
+        if self.body.len() <= 125 {
+            stream.put(&[self.body.len() as u8]);
+        } else {
+            stream.put(&[126u8]);
+            let size = self.body.len() as u16;
+            stream.put(&[(size >> 8) as u8, (size & 255) as u8]);
+        };
+        stream.put(self.body.as_slice());
+        let r: &[u8] = stream.as_ref();
+        r.to_vec()
+    }
 }
 
 fn frame_opts() -> Parser<FrameOpts> {
@@ -24,8 +54,13 @@ fn frame_opts() -> Parser<FrameOpts> {
         .map(|(_, word)| FrameOpts::new(word))
 }
 
-fn parse_frame(stream: &mut ByteStream) -> Option<Frame> {
-    let opts = stream.apply(frame_opts()).unwrap();
+pub fn parse_frame(stream: &mut ByteStream) -> Option<Frame> {
+    let frame_opts = stream.apply(frame_opts());
+    if frame_opts.is_err() {
+        return None;
+    }
+
+    let opts = frame_opts.unwrap();
     let (fin, code, mask) = (opts.fin, opts.code, opts.mask);
 
     let p0 = Parser::init(|| ());
@@ -68,7 +103,7 @@ fn build_u16(vec: Vec<u8>) -> u16 {
 }
 
 fn build_u64(vec: Vec<u8>) -> u64 {
-    vec.into_iter().fold(0 as u64, |acc, b| acc << 8 + b as u64)
+    vec.into_iter().fold(0u64, |acc, b| acc << 8 + b as u64)
 }
 
 #[derive(Default)]
@@ -83,8 +118,8 @@ impl FrameOpts {
     fn new(word: Vec<u8>) -> FrameOpts {
         FrameOpts {
             fin: (word[0] >> 7) > 0,
-            code: (127 as u8) & word[0],
-            len: (127 as u8) & word[1],
+            code: 0xFu8 & word[0],
+            len: 127u8 & word[1],
             mask: (word[1] >> 7) > 0,
         }
     }
