@@ -2,59 +2,129 @@ use crate::stream::ByteStream;
 use std::error::Error;
 use std::fmt::Formatter;
 use std::{error, fmt};
+use std::marker::PhantomData;
 
-pub type Matcher<T> = dyn Fn(&mut ByteStream) -> Result<T, MatchError> + 'static;
+pub trait MatcherTrait<T> {
+    fn do_match(&self, bs: &mut ByteStream) -> Result<T, MatchError>;
 
-pub fn chain<T: 'static, U: 'static>(
-    this: Box<Matcher<T>>,
-    next: Box<Matcher<U>>,
-) -> Box<Matcher<(T, U)>> {
-    Box::new(move |bs| {
-        let t = (*this)(bs)?;
-        let u = (*next)(bs)?;
+    fn boxed(self) -> Box<dyn MatcherTrait<T>>
+    where
+        Self: Sized + 'static,
+    {
+        Box::new(self)
+    }
+
+    fn then<U, That>(self, that: That) -> Chain<Self, That>
+    where
+        Self: Sized,
+        That: MatcherTrait<U>,
+    {
+        Chain(self, that)
+    }
+
+    fn then_with<U, F, N>(self, f: F) -> Expose<Self, F>
+    where
+        Self: Sized,
+        F: Fn(&T) -> N + 'static,
+        N: MatcherTrait<U>,
+    {
+        Expose { context: self, next: f }
+    }
+
+    fn map<U, F>(self, f: F) -> Map<Self, T, F>
+    where
+        Self: Sized,
+        F: Fn(T) -> U + 'static,
+    {
+        Map {
+            prev: self,
+            mapper: f,
+            phantom: PhantomData::<T>,
+        }
+    }
+
+    fn then_map<U, That, F, V>(self, that: That, f: F) -> Map<Chain<Self, That>, (T, U), F>
+    where
+        Self: Sized,
+        That: MatcherTrait<U>,
+        F: Fn((T, U)) -> V + 'static,
+    {
+        self.then(that).map(f)
+    }
+}
+
+pub type Matcher<T> = dyn MatcherTrait<T>;
+
+impl<T, F> MatcherTrait<T> for F where F: Fn(&mut ByteStream) -> Result<T, MatchError> {
+    fn do_match(&self, bs: &mut ByteStream) -> Result<T, MatchError> {
+        (self)(bs)
+    }
+}
+
+impl<T> MatcherTrait<T> for Box<dyn MatcherTrait<T>> {
+    fn do_match(&self, bs: &mut ByteStream) -> Result<T, MatchError> {
+        (**self).do_match(bs)
+    }
+}
+
+// Chain
+
+pub struct Chain<M, N>(M, N);
+
+impl<M, N, T, U> MatcherTrait<(T, U)> for Chain<M, N> where M: MatcherTrait<T>, N: MatcherTrait<U> {
+    fn do_match(&self, bs: &mut ByteStream) -> Result<(T, U), MatchError> {
+        let t = self.0.do_match(bs)?;
+        let u = self.1.do_match(bs)?;
         Ok((t, u))
-    })
+    }
 }
 
-pub fn expose<T: 'static, U: 'static, F: Fn(&T) -> Box<Matcher<U>> + 'static>(
-    this: Box<Matcher<T>>,
-    f: F,
-) -> Box<Matcher<(T, U)>> {
-    Box::new(move |bs| {
-        let t = (*this)(bs)?;
-        let g = f(&t);
-        let u = (*g)(bs)?;
+// Expose
+
+pub struct Expose<M, F>{
+    context: M,
+    next: F,
+}
+
+impl<M, F, N, T, U> MatcherTrait<(T, U)> for Expose<M, F>
+where
+    M: MatcherTrait<T>,
+    F: Fn(&T) -> N + 'static,
+    N: MatcherTrait<U>,
+{
+    fn do_match(&self, bs: &mut ByteStream) -> Result<(T, U), MatchError> {
+        let t = self.context.do_match(bs)?;
+        let g = (self.next)(&t);
+        let u = g.do_match(bs)?;
         Ok((t, u))
-    })
+    }
 }
 
-pub fn apply<T: 'static, U: 'static, F: Fn(&mut T, U) + 'static>(
-    this: Box<Matcher<(T, U)>>,
-    f: F,
-) -> Box<Matcher<T>> {
-    Box::new(move |bs| {
-        let (mut t, u) = (*this)(bs)?;
-        f(&mut t, u);
-        Ok(t)
-    })
+// Map
+
+pub struct Map<M, T, F> {
+    prev: M,
+    mapper: F,
+    phantom: PhantomData<T>,
 }
 
-pub fn map<T: 'static, U: 'static, F: Fn(T) -> U + 'static>(
-    this: Box<Matcher<T>>,
-    f: F,
-) -> Box<Matcher<U>> {
-    Box::new(move |bs| {
-        let t = (*this)(bs)?;
-        let u = f(t);
+impl<M, T, U, F> MatcherTrait<U> for Map<M, T, F>
+where
+    M: MatcherTrait<T>,
+    F: Fn(T) -> U + 'static,
+{
+    fn do_match(&self, bs: &mut ByteStream) -> Result<U, MatchError> {
+        let t = self.prev.do_match(bs)?;
+        let u = (self.mapper)(t);
         Ok(u)
-    })
+    }
 }
 
-pub fn unit<T: 'static, F: Fn() -> T + 'static>(f: F) -> Box<Matcher<T>> {
-    Box::new(move |_| {
+pub fn unit<T: 'static, F: Fn() -> T + 'static>(f: F) -> impl MatcherTrait<T> {
+    move |_: &mut ByteStream| {
         let t = f();
         Ok(t)
-    })
+    }
 }
 
 #[derive(Debug)]

@@ -1,4 +1,4 @@
-use crate::parser::{Parser, bytes, Applicator};
+use crate::parser::{MatcherTrait, unit, bytes, Applicator, ParserExt};
 use crate::stream::ByteStream;
 
 #[derive(Debug)]
@@ -48,10 +48,9 @@ impl Into<Vec<u8>> for Frame {
     }
 }
 
-fn frame_opts() -> Parser<FrameOpts> {
-    Parser::init(|| ())
-        .then(bytes(2))
-        .map(|(_, word)| FrameOpts::new(word))
+fn frame_opts() -> impl MatcherTrait<FrameOpts> {
+    bytes(2)
+        .map(|word| FrameOpts::new(word))
 }
 
 pub fn parse_frame(stream: &mut ByteStream) -> Option<Frame> {
@@ -63,13 +62,13 @@ pub fn parse_frame(stream: &mut ByteStream) -> Option<Frame> {
     let opts = frame_opts.unwrap();
     let (fin, code, mask) = (opts.fin, opts.code, opts.mask);
 
-    let p0 = Parser::init(|| ());
+    let p0 = unit(|| ());
     let p1 = match opts.len {
         127 => p0.then(bytes(8))
-                .map(|(_, vec)| build_u64(vec) as u32),
+                .map(|(_, vec)| build_u64(vec) as u32).boxed(),
         126 => p0.then(bytes(2))
-                .map(|(_, vec)| build_u16(vec) as u32),
-        n => p0.map(move |_| n as u32)
+                .map(|(_, vec)| build_u16(vec) as u32).boxed(),
+        n => p0.map(move |_| n as u32).boxed()
     };
 
     let p2 = p1.map( move |len| Frame {
@@ -85,9 +84,9 @@ pub fn parse_frame(stream: &mut ByteStream) -> Option<Frame> {
          .save(|frame, vec| {
              let mask: [u8; 4] = [vec[0], vec[1], vec[2], vec[3]];
              frame.mask = Some(mask);
-         })
+         }).boxed()
     } else {
-        p2
+        p2.boxed()
     };
 
     let p4 = p3.then_with(|frame| bytes(frame.len as usize))
