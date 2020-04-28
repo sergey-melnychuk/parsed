@@ -1,4 +1,4 @@
-use crate::parser::{before, bytes, exact, repeat, single, token, Applicator, Parser};
+use crate::parser::{before, bytes, exact, repeat, single, token, Applicator, MatcherTrait, unit, ParserExt};
 use crate::stream::{ByteStream, ToStream};
 use std::ops::Add;
 
@@ -15,8 +15,8 @@ pub struct Header {
     pub value: String,
 }
 
-fn header_parser() -> Parser<Header> {
-    Parser::init(|| vec![])
+fn header_parser() -> impl MatcherTrait<Header> {
+    unit(|| vec![])
         .then(before(':'))
         .map(|(mut vec, val)| {
             vec.push(as_string(val));
@@ -73,8 +73,8 @@ impl Into<String> for Response {
     }
 }
 
-fn request_parser() -> Parser<Request> {
-    Parser::init(|| Request::default())
+fn request_parser() -> impl MatcherTrait<Request> {
+    unit(|| Request::default())
         .then(before(' '))
         .save(|req, bytes| req.method = as_string(bytes))
         .then(single(' '))
@@ -87,7 +87,7 @@ fn request_parser() -> Parser<Request> {
         .save(|req, bytes| req.protocol = as_string(bytes))
         .then(exact(&[b'\r', b'\n']))
         .skip()
-        .then(repeat(header_parser().into()))
+        .then(repeat(header_parser()))
         .save(|req, vec| req.headers = vec)
         .then(exact(&[b'\r', b'\n']))
         .skip()
@@ -110,8 +110,8 @@ fn get_content_length(req: &Request) -> Option<usize> {
         .map(|len| len.parse::<usize>().unwrap_or(0))
 }
 
-fn content_parser(len: usize) -> Parser<Vec<u8>> {
-    Parser::unit(bytes(len))
+fn content_parser(len: usize) -> impl MatcherTrait<Vec<u8>> {
+    bytes(len)
 }
 
 pub fn parse_http_request(stream: &mut ByteStream) -> Option<Request> {
