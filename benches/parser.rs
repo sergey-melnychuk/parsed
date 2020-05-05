@@ -17,6 +17,6 @@ fn bench_parse_http_request(b: &mut Bencher) {
     b.iter(|| {
         let mut bs = text.to_string().into_stream();
         let req = parse_http_request(&mut bs);
-        assert!(req.is_ok());
+        assert!(req.is_some());
     });
 }
