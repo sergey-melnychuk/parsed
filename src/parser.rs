@@ -1,5 +1,5 @@
+pub use crate::matcher::{Matcher, MatchError, unit};
 use crate::stream::{ByteStream, ToStream};
-pub use crate::matcher::{MatcherTrait, MatchError, unit, Matcher};
 use std::marker::PhantomData;
 
 pub struct Save<M, T, U, F> {
@@ -8,9 +8,9 @@ pub struct Save<M, T, U, F> {
     phantom: PhantomData<(T, U)>,
 }
 
-impl<M, T, U, F> MatcherTrait<T> for Save<M, T, U, F>
+impl<M, T, U, F> Matcher<T> for Save<M, T, U, F>
 where
-    M: MatcherTrait<(T, U)>,
+    M: Matcher<(T, U)>,
     F: Fn(&mut T, U),
 {
     fn do_match(&self, bs: &mut ByteStream) -> Result<T, MatchError> {
@@ -25,9 +25,9 @@ pub struct Skip<M, T, U> {
     phantom: PhantomData<(T, U)>,
 }
 
-impl<M, T, U> MatcherTrait<T> for Skip<M, T, U>
+impl<M, T, U> Matcher<T> for Skip<M, T, U>
 where
-    M: MatcherTrait<(T, U)>,
+    M: Matcher<(T, U)>,
 {
     fn do_match(&self, bs: &mut ByteStream) -> Result<T, MatchError> {
         let (t, _u) = self.matcher.do_match(bs)?;
@@ -41,7 +41,7 @@ pub trait ParserExt<T, U>: Sized {
     fn skip(self) -> Skip<Self, T, U>;
 }
 
-impl<M, T, U> ParserExt<T, U> for M where M: MatcherTrait<(T, U)> + Sized {
+impl<M, T, U> ParserExt<T, U> for M where M: Matcher<(T, U)> + Sized {
     fn save<F: Fn(&mut T, U) + 'static>(self, f: F) -> Save<Self, T, U, F> {
         Save {
             matcher: self,
@@ -58,7 +58,7 @@ impl<M, T, U> ParserExt<T, U> for M where M: MatcherTrait<(T, U)> + Sized {
     }
 }
 
-pub fn one(b: u8) -> impl MatcherTrait<u8> {
+pub fn one(b: u8) -> impl Matcher<u8> {
     move |bs: &mut ByteStream| {
         let pos = bs.pos();
         bs.next().filter(|x| *x == b).ok_or(MatchError::unexpected(
@@ -69,7 +69,7 @@ pub fn one(b: u8) -> impl MatcherTrait<u8> {
     }
 }
 
-pub fn single(chr: char) -> impl MatcherTrait<char> {
+pub fn single(chr: char) -> impl Matcher<char> {
     move |bs: &mut ByteStream| {
         let pos = bs.pos();
         bs.next()
@@ -83,7 +83,7 @@ pub fn single(chr: char) -> impl MatcherTrait<char> {
     }
 }
 
-pub fn repeat<T: 'static>(this: impl MatcherTrait<T>) -> impl MatcherTrait<Vec<T>> {
+pub fn repeat<T: 'static>(this: impl Matcher<T>) -> impl Matcher<Vec<T>> {
     move |bs: &mut ByteStream| {
         let mut acc: Vec<T> = vec![];
         loop {
@@ -99,7 +99,7 @@ pub fn repeat<T: 'static>(this: impl MatcherTrait<T>) -> impl MatcherTrait<Vec<T
     }
 }
 
-pub fn maybe<T: 'static>(this: impl  MatcherTrait<T>) -> impl MatcherTrait<Option<T>> {
+pub fn maybe<T: 'static>(this: impl  Matcher<T>) -> impl Matcher<Option<T>> {
     move |bs: &mut ByteStream| {
         let mark = bs.mark();
         match this.do_match(bs) {
@@ -112,7 +112,7 @@ pub fn maybe<T: 'static>(this: impl  MatcherTrait<T>) -> impl MatcherTrait<Optio
     }
 }
 
-pub fn until<F: Fn(u8) -> bool + 'static>(f: F) -> impl MatcherTrait<Vec<u8>> {
+pub fn until<F: Fn(u8) -> bool + 'static>(f: F) -> impl Matcher<Vec<u8>> {
     move |bs: &mut ByteStream| {
         let mut acc = vec![];
         loop {
@@ -128,7 +128,7 @@ pub fn until<F: Fn(u8) -> bool + 'static>(f: F) -> impl MatcherTrait<Vec<u8>> {
     }
 }
 
-pub fn before(chr: char) -> impl MatcherTrait<Vec<u8>> {
+pub fn before(chr: char) -> impl Matcher<Vec<u8>> {
     move |bs: &mut ByteStream| {
         let pos = bs.pos();
         bs.find_single(|c| *c == chr as u8)
@@ -138,11 +138,11 @@ pub fn before(chr: char) -> impl MatcherTrait<Vec<u8>> {
     }
 }
 
-pub fn token() -> impl MatcherTrait<String> {
+pub fn token() -> impl Matcher<String> {
     before(' ').map(|vec| vec.into_iter().map(|b| b as char).collect::<String>())
 }
 
-pub fn exact(slice: &'static [u8]) -> impl MatcherTrait<Vec<u8>> {
+pub fn exact(slice: &'static [u8]) -> impl Matcher<Vec<u8>> {
     move |bs: &mut ByteStream| {
         let mark = bs.mark();
         let mut acc = vec![];
@@ -162,7 +162,7 @@ pub fn exact(slice: &'static [u8]) -> impl MatcherTrait<Vec<u8>> {
     }
 }
 
-pub fn string(s: &'static str) -> impl MatcherTrait<String> {
+pub fn string(s: &'static str) -> impl Matcher<String> {
     move |bs: &mut ByteStream| {
         let m = exact(s.as_bytes());
         let mark = bs.mark();
@@ -176,7 +176,7 @@ pub fn string(s: &'static str) -> impl MatcherTrait<String> {
     }
 }
 
-pub fn space() -> impl MatcherTrait<Vec<char>> {
+pub fn space() -> impl Matcher<Vec<char>> {
     move |bs: &mut ByteStream| {
         let f: fn(u8) -> bool = |b| (b as char).is_whitespace();
         match until(f).do_match(bs) {
@@ -186,7 +186,7 @@ pub fn space() -> impl MatcherTrait<Vec<char>> {
     }
 }
 
-pub fn bytes(len: usize) -> impl MatcherTrait<Vec<u8>> {
+pub fn bytes(len: usize) -> impl Matcher<Vec<u8>> {
     move |bs: &mut ByteStream| {
         bs.get(len)
             .ok_or(MatchError::over_capacity(bs.pos(), bs.len(), len))
@@ -194,11 +194,11 @@ pub fn bytes(len: usize) -> impl MatcherTrait<Vec<u8>> {
 }
 
 pub trait Applicator {
-    fn apply<T>(&mut self, parser: impl MatcherTrait<T>) -> Result<T, MatchError>;
+    fn apply<T>(&mut self, parser: impl Matcher<T>) -> Result<T, MatchError>;
 }
 
 impl Applicator for ByteStream {
-    fn apply<T>(&mut self, parser: impl MatcherTrait<T>) -> Result<T, MatchError> {
+    fn apply<T>(&mut self, parser: impl Matcher<T>) -> Result<T, MatchError> {
         parser.do_match(self)
     }
 }

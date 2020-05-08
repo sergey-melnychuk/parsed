@@ -1,4 +1,4 @@
-use crate::parser::{MatcherTrait, unit, bytes, Applicator, ParserExt};
+use crate::parser::{Matcher, unit, bytes, Applicator, ParserExt};
 use crate::stream::ByteStream;
 
 #[derive(Debug)]
@@ -48,7 +48,7 @@ impl Into<Vec<u8>> for Frame {
     }
 }
 
-fn frame_opts() -> impl MatcherTrait<FrameOpts> {
+fn frame_opts() -> impl Matcher<FrameOpts> {
     bytes(2)
         .map(|word| FrameOpts::new(word))
 }

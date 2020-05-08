@@ -4,10 +4,10 @@ use std::fmt::Formatter;
 use std::{error, fmt};
 use std::marker::PhantomData;
 
-pub trait MatcherTrait<T> {
+pub trait Matcher<T> {
     fn do_match(&self, bs: &mut ByteStream) -> Result<T, MatchError>;
 
-    fn boxed(self) -> Box<dyn MatcherTrait<T>>
+    fn boxed(self) -> Box<dyn Matcher<T>>
     where
         Self: Sized + 'static,
     {
@@ -17,7 +17,7 @@ pub trait MatcherTrait<T> {
     fn then<U, That>(self, that: That) -> Chain<Self, That>
     where
         Self: Sized,
-        That: MatcherTrait<U>,
+        That: Matcher<U>,
     {
         Chain(self, that)
     }
@@ -26,7 +26,7 @@ pub trait MatcherTrait<T> {
     where
         Self: Sized,
         F: Fn(&T) -> N + 'static,
-        N: MatcherTrait<U>,
+        N: Matcher<U>,
     {
         Expose { context: self, next: f }
     }
@@ -46,22 +46,20 @@ pub trait MatcherTrait<T> {
     fn then_map<U, That, F, V>(self, that: That, f: F) -> Map<Chain<Self, That>, (T, U), F>
     where
         Self: Sized,
-        That: MatcherTrait<U>,
+        That: Matcher<U>,
         F: Fn((T, U)) -> V + 'static,
     {
         self.then(that).map(f)
     }
 }
 
-pub type Matcher<T> = dyn MatcherTrait<T>;
-
-impl<T, F> MatcherTrait<T> for F where F: Fn(&mut ByteStream) -> Result<T, MatchError> {
+impl<T, F> Matcher<T> for F where F: Fn(&mut ByteStream) -> Result<T, MatchError> {
     fn do_match(&self, bs: &mut ByteStream) -> Result<T, MatchError> {
         (self)(bs)
     }
 }
 
-impl<T> MatcherTrait<T> for Box<dyn MatcherTrait<T>> {
+impl<T> Matcher<T> for Box<dyn Matcher<T>> {
     fn do_match(&self, bs: &mut ByteStream) -> Result<T, MatchError> {
         (**self).do_match(bs)
     }
@@ -71,7 +69,7 @@ impl<T> MatcherTrait<T> for Box<dyn MatcherTrait<T>> {
 
 pub struct Chain<M, N>(M, N);
 
-impl<M, N, T, U> MatcherTrait<(T, U)> for Chain<M, N> where M: MatcherTrait<T>, N: MatcherTrait<U> {
+impl<M, N, T, U> Matcher<(T, U)> for Chain<M, N> where M: Matcher<T>, N: Matcher<U> {
     fn do_match(&self, bs: &mut ByteStream) -> Result<(T, U), MatchError> {
         let t = self.0.do_match(bs)?;
         let u = self.1.do_match(bs)?;
@@ -86,11 +84,11 @@ pub struct Expose<M, F>{
     next: F,
 }
 
-impl<M, F, N, T, U> MatcherTrait<(T, U)> for Expose<M, F>
+impl<M, F, N, T, U> Matcher<(T, U)> for Expose<M, F>
 where
-    M: MatcherTrait<T>,
+    M: Matcher<T>,
     F: Fn(&T) -> N + 'static,
-    N: MatcherTrait<U>,
+    N: Matcher<U>,
 {
     fn do_match(&self, bs: &mut ByteStream) -> Result<(T, U), MatchError> {
         let t = self.context.do_match(bs)?;
@@ -108,9 +106,9 @@ pub struct Map<M, T, F> {
     phantom: PhantomData<T>,
 }
 
-impl<M, T, U, F> MatcherTrait<U> for Map<M, T, F>
+impl<M, T, U, F> Matcher<U> for Map<M, T, F>
 where
-    M: MatcherTrait<T>,
+    M: Matcher<T>,
     F: Fn(T) -> U + 'static,
 {
     fn do_match(&self, bs: &mut ByteStream) -> Result<U, MatchError> {
@@ -120,7 +118,7 @@ where
     }
 }
 
-pub fn unit<T: 'static, F: Fn() -> T + 'static>(f: F) -> impl MatcherTrait<T> {
+pub fn unit<T: 'static, F: Fn() -> T + 'static>(f: F) -> impl Matcher<T> {
     move |_: &mut ByteStream| {
         let t = f();
         Ok(t)

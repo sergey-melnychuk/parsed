@@ -1,4 +1,4 @@
-use crate::parser::{before, bytes, exact, repeat, single, token, Applicator, MatcherTrait, unit, ParserExt};
+use crate::parser::{before, bytes, exact, repeat, single, token, Applicator, Matcher, unit, ParserExt};
 use crate::stream::{ByteStream, ToStream};
 use std::ops::Add;
 
@@ -15,7 +15,7 @@ pub struct Header {
     pub value: String,
 }
 
-fn header_parser() -> impl MatcherTrait<Header> {
+fn header_parser() -> impl Matcher<Header> {
     unit(|| vec![])
         .then(before(':'))
         .map(|(mut vec, val)| {
@@ -73,7 +73,7 @@ impl Into<String> for Response {
     }
 }
 
-fn request_parser() -> impl MatcherTrait<Request> {
+fn request_parser() -> impl Matcher<Request> {
     unit(|| Request::default())
         .then(before(' '))
         .save(|req, bytes| req.method = as_string(bytes))
@@ -110,7 +110,7 @@ fn get_content_length(req: &Request) -> Option<usize> {
         .map(|len| len.parse::<usize>().unwrap_or(0))
 }
 
-fn content_parser(len: usize) -> impl MatcherTrait<Vec<u8>> {
+fn content_parser(len: usize) -> impl Matcher<Vec<u8>> {
     bytes(len)
 }
 
