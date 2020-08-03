@@ -1,7 +1,9 @@
 [package]
 name = "parser-combinators"
-version = "0.1.0"
+version = "0.1.4"
 authors = ["sergey-melnychuk"]
 edition = "2018"
+description = "Parser combinators library."
+license = "MIT"
 
 [dependencies]
