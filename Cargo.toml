@@ -5,8 +5,9 @@ authors = ["sergey-melnychuk"]
 edition = "2018"
 description = "Parser combinators library."
 license = "MIT"
+homepage = "https://github.com/sergey-melnychuk/parsed"
 repository = "https://github.com/sergey-melnychuk/parsed"
-readme = "https://github.com/sergey-melnychuk/parsed"
+documentation = "https://github.com/sergey-melnychuk/parsed"
 
 [dependencies]
 
