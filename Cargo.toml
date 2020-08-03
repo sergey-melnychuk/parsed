@@ -1,5 +1,5 @@
 [package]
-name = "parser-combinators"
+name = "parsed"
 version = "0.1.4"
 authors = ["sergey-melnychuk"]
 edition = "2018"
