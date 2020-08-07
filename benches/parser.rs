@@ -1,9 +1,8 @@
 #![feature(test)]
 #[cfg(test)]
 
-use parser_combinators::stream::ToStream;
-use parser_combinators::parser::Applicator;
-use parser_combinators::http::parse_http_request;
+use parsed::stream::ToStream;
+use parsed::http::parse_http_request;
 
 extern crate test;
 use test::Bencher;
