@@ -1,5 +1,5 @@
-use crate::parser::{before, bytes, exact, repeat, single, token, Applicator, Matcher, unit, ParserExt};
-use crate::stream::{ByteStream, ToStream};
+use crate::parser::{before, bytes, exact, repeat, single, Applicator, Matcher, unit, ParserExt};
+use crate::stream::ByteStream;
 use std::ops::Add;
 
 pub fn as_string(bytes: Vec<u8>) -> String {
@@ -110,10 +110,6 @@ fn get_content_length(req: &Request) -> Option<usize> {
         .map(|len| len.parse::<usize>().unwrap_or(0))
 }
 
-fn content_parser(len: usize) -> impl Matcher<Vec<u8>> {
-    bytes(len)
-}
-
 pub fn parse_http_request(stream: &mut ByteStream) -> Option<Request> {
     stream
         .apply(request_parser())
@@ -128,7 +124,7 @@ mod tests {
     #[test]
     fn curl_request() {
         let text = "GET / HTTP/1.1\r\nHost: localhost:9000\r\nUser-Agent: curl/7.64.1\r\nAccept: */*\r\n\r\n";
-        let mut bs = text.to_string().into_stream();
+        let mut bs: ByteStream = text.to_string().into();
         let req_opt = parse_http_request(&mut bs);
         let req = req_opt.unwrap();
 
@@ -147,7 +143,7 @@ mod tests {
     #[test]
     fn http_request() {
         let text = "GET /docs/index.html HTTP/1.1\r\nHost: www.nowhere123.com\r\nAccept: image/gif, image/jpeg, */*\r\nAccept-Language: en-us\r\nAccept-Encoding: gzip, deflate\r\nContent-Length: 8\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)\r\n\r\n0123456\n";
-        let mut bs = text.to_string().into_stream();
+        let mut bs: ByteStream = text.to_string().into();
         let req_opt = parse_http_request(&mut bs);
         let req = req_opt.unwrap();
 
@@ -175,7 +171,7 @@ mod tests {
     #[test]
     fn http_upgrade() {
         let text = "GET /chat HTTP/1.1\r\nHost: example.com:8000\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n";
-        let mut bs = text.to_string().into_stream();
+        let mut bs: ByteStream = text.to_string().into();
         let req_opt = bs.apply(request_parser());
         let req = req_opt.unwrap();
 

@@ -125,29 +125,6 @@ impl FrameOpts {
 
 }
 
-struct FrameBuilder {
-    fin_op: u8,
-    mask_len: u8,
-    len2: u16,
-    len8: u64,
-    len: u32,
-    mask: [u8; 4],
-    body: Vec<u8>,
-}
-
-impl FrameBuilder {
-    fn build(self) -> Frame {
-        let len = (127 as u8) | self.mask_len;
-        Frame {
-            fin: (self.fin_op >> 7) > 0,
-            opcode: (127 as u8) | self.fin_op,
-            len: if len <= 125 {len as u32} else {if len == 126 {self.len2 as u32} else {self.len8 as u32}},
-            mask: if (self.mask_len >> 7) > 0 {Some(self.mask)} else {None},
-            body: self.body,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

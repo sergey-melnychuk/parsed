@@ -1,5 +1,5 @@
 pub use crate::matcher::{Matcher, MatchError, unit};
-use crate::stream::{ByteStream, ToStream};
+use crate::stream::ByteStream;
 use std::marker::PhantomData;
 
 pub struct Save<M, T, U, F> {
@@ -193,6 +193,48 @@ pub fn bytes(len: usize) -> impl Matcher<Vec<u8>> {
     }
 }
 
+pub fn get_u8() -> impl Matcher<u8> {
+    move |bs: &mut ByteStream| {
+        bs.get_u8()
+            .ok_or(MatchError::over_capacity(bs.pos(), bs.len(), 1))
+    }
+}
+
+pub fn get_u16() -> impl Matcher<u16> {
+    move |bs: &mut ByteStream| {
+        bs.get_u16()
+            .ok_or(MatchError::over_capacity(bs.pos(), bs.len(), 2))
+    }
+}
+
+pub fn get_u32() -> impl Matcher<u32> {
+    move |bs: &mut ByteStream| {
+        bs.get_u32()
+            .ok_or(MatchError::over_capacity(bs.pos(), bs.len(), 4))
+    }
+}
+
+pub fn get_u64() -> impl Matcher<u64> {
+    move |bs: &mut ByteStream| {
+        bs.get_u64()
+            .ok_or(MatchError::over_capacity(bs.pos(), bs.len(), 8))
+    }
+}
+
+pub fn get_16() -> impl Matcher<[u8; 16]> {
+    move |bs: &mut ByteStream| {
+        bs.get_16()
+            .ok_or(MatchError::over_capacity(bs.pos(), bs.len(), 16))
+    }
+}
+
+pub fn get_32() -> impl Matcher<[u8; 32]> {
+    move |bs: &mut ByteStream| {
+        bs.get_32()
+            .ok_or(MatchError::over_capacity(bs.pos(), bs.len(), 32))
+    }
+}
+
 pub trait Applicator {
     fn apply<T>(&mut self, parser: impl Matcher<T>) -> Result<T, MatchError>;
 }
@@ -225,7 +267,7 @@ mod tests {
             }
         }
 
-        let mut bs = "abc".to_string().into_stream();
+        let mut bs: ByteStream = "abc".to_string().into();
 
         let m = unit(|| TokenBuilder::zero())
             .then_map(single('a'), |(tb, a)| TokenBuilder { k: Some(a), ..tb })
@@ -241,7 +283,7 @@ mod tests {
 
     #[test]
     fn list() {
-        let mut bs = "abccc".to_string().into_stream();
+        let mut bs: ByteStream = "abccc".to_string().into();
 
         let c = single('c');
 
@@ -270,7 +312,7 @@ mod tests {
 
     #[test]
     fn until() {
-        let mut bs = "asdasdasdasd1".to_string().into_stream();
+        let mut bs: ByteStream = "asdasdasdasd1".to_string().into();
 
         let until1 = unit(|| ())
             .then_map(before('1'), |(_, vec)| {
@@ -283,7 +325,7 @@ mod tests {
 
     #[test]
     fn chunks() {
-        let mut bs = "asdasdqqq123123token1 token2\n".to_string().into_stream();
+        let mut bs: ByteStream = "asdasdqqq123123token1 token2\n".to_string().into();
 
         let m = unit(|| vec![])
             .then(exact("asd".as_bytes()))

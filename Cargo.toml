@@ -1,6 +1,6 @@
 [package]
 name = "parsed"
-version = "0.1.6"
+version = "0.2.0"
 authors = ["sergey-melnychuk"]
 edition = "2018"
 description = "Parser combinators library."
@@ -11,3 +11,10 @@ documentation = "https://github.com/sergey-melnychuk/parsed"
 
 [dependencies]
 
+[dev-dependencies]
+bencher = "0.1.5"
+quickcheck = "0.9.2"
+
+[[bench]]
+name = "http"
+harness = false
