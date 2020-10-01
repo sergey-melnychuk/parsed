@@ -1,6 +1,4 @@
 use crate::stream::ByteStream;
-use std::error::Error;
-use std::fmt::Formatter;
 use std::{error, fmt};
 use std::marker::PhantomData;
 
@@ -142,13 +140,6 @@ impl MatchError {
         }
     }
 
-    pub fn not_found(offset: usize, chr: char) -> MatchError {
-        MatchError {
-            offset,
-            message: format!("MatchError at offset {}, '{}' not found", offset, chr),
-        }
-    }
-
     pub fn over_capacity(offset: usize, available: usize, requested: usize) -> MatchError {
         MatchError {
             offset,
@@ -161,7 +152,7 @@ impl MatchError {
 }
 
 impl fmt::Display for MatchError {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(&self.message)
     }
 }
@@ -170,7 +161,7 @@ impl error::Error for MatchError {
     fn description(&self) -> &str {
         "MatchError"
     }
-    fn cause(&self) -> Option<&dyn Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         None
     }
 }

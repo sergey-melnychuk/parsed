@@ -63,7 +63,7 @@ pub fn one(b: u8) -> impl Matcher<u8> {
         let pos = bs.pos();
         bs.next().filter(|x| *x == b).ok_or(MatchError::unexpected(
             pos,
-            format!("EOF"),
+            "EOF".to_string(),
             format!("byte {}", b),
         ))
     }
@@ -77,8 +77,8 @@ pub fn single(chr: char) -> impl Matcher<char> {
             .filter(|c| *c == chr)
             .ok_or(MatchError::unexpected(
                 pos,
-                format!("EOF"),
-                format!("{}", chr),
+                "EOF".to_string(),
+                format!("char '{}'", chr),
             ))
     }
 }
@@ -119,10 +119,12 @@ pub fn until<F: Fn(u8) -> bool + 'static>(f: F) -> impl Matcher<Vec<u8>> {
             let mark = bs.mark();
             match bs.next() {
                 Some(b) if f(b) => acc.push(b),
-                _ => {
+                Some(_) => {
                     bs.reset(mark);
                     return Ok(acc);
-                }
+                },
+                _ => return Err(MatchError::over_capacity(
+                        bs.pos(), bs.len(), 1))
             }
         }
     }
@@ -134,7 +136,7 @@ pub fn before(chr: char) -> impl Matcher<Vec<u8>> {
         bs.find_single(|c| *c == chr as u8)
             .map(|idx| idx - pos)
             .and_then(|len| bs.get(len))
-            .ok_or(MatchError::not_found(pos, chr))
+            .ok_or(MatchError::over_capacity(pos, bs.len(), 1))
     }
 }
 
