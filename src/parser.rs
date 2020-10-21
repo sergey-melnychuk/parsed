@@ -99,6 +99,27 @@ pub fn repeat<T: 'static>(this: impl Matcher<T>) -> impl Matcher<Vec<T>> {
     }
 }
 
+pub fn times<T: 'static>(count: usize, this: impl Matcher<T>) -> impl Matcher<Vec<T>> {
+    move |bs: &mut ByteStream| {
+        let mut acc: Vec<T> = vec![];
+        let mark = bs.mark();
+        loop {
+            match this.do_match(bs) {
+                Ok(item) => {
+                    acc.push(item);
+                },
+                err => {
+                    bs.reset(mark);
+                    return err.map(|_| vec![]);
+                }
+            }
+            if acc.len() >= count {
+                return Ok(acc);
+            }
+        }
+    }
+}
+
 pub fn maybe<T: 'static>(this: impl  Matcher<T>) -> impl Matcher<Option<T>> {
     move |bs: &mut ByteStream| {
         let mark = bs.mark();
@@ -367,4 +388,34 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn test_times_ok() {
+        let mut bs = ByteStream::wrap(b"012301230123".to_vec());
+
+        let m = unit(|| ())
+            .then(times(3, exact(b"0123")))
+            .map(|(_, times)| times);
+
+        assert_eq!(
+            bs.apply(m).unwrap(),
+            vec![
+                b"0123",
+                b"0123",
+                b"0123",
+            ]
+        );
+    }
+
+    #[test]
+    fn test_times_mismatch() {
+        let mut bs = ByteStream::wrap(b"0123012301AA".to_vec());
+
+        let m = unit(|| vec![])
+            .then(times(3, exact(b"0123")))
+            .save(|vec, times| *vec = times);
+
+        assert!(bs.apply(m).is_err());
+    }
+
 }
