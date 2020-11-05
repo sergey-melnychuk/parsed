@@ -13,6 +13,7 @@ fn http_request(b: &mut Bencher) {
         let req = parse_http_request(&mut bs);
         assert!(req.is_some());
     });
+    b.bytes = text.len() as u64;
 }
 
 fn ws_frame(b: &mut Bencher) {
@@ -22,6 +23,7 @@ fn ws_frame(b: &mut Bencher) {
         let opt = parse_frame(&mut bs);
         assert!(opt.is_some());
     });
+    b.bytes = bytes.len() as u64;
 }
 
 
