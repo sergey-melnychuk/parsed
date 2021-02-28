@@ -1,6 +1,6 @@
 [package]
 name = "parsed"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["sergey-melnychuk"]
 edition = "2018"
 description = "Parser combinators library."
@@ -8,6 +8,10 @@ license = "MIT"
 homepage = "https://github.com/sergey-melnychuk/parsed"
 repository = "https://github.com/sergey-melnychuk/parsed"
 documentation = "https://github.com/sergey-melnychuk/parsed"
+
+[features]
+default = []
+http = []
 
 [dependencies]
 
