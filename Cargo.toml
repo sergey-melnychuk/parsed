@@ -1,24 +1,50 @@
 [package]
 name = "parsed"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["sergey-melnychuk"]
-edition = "2018"
-description = "Parser combinators library."
+edition = "2024"
+rust-version = "1.85"
+description = "Resumable, zero-copy parser combinators for custom protocols."
 license = "MIT"
-homepage = "https://github.com/sergey-melnychuk/parsed"
 repository = "https://github.com/sergey-melnychuk/parsed"
-documentation = "https://github.com/sergey-melnychuk/parsed"
+documentation = "https://docs.rs/parsed"
+readme = "README.md"
+keywords = ["parser", "combinators", "parsing", "protocol", "streaming"]
+categories = ["parsing", "network-programming"]
 
 [features]
 default = []
 http = []
+ws = ["http"]
 
 [dependencies]
 
 [dev-dependencies]
 bencher = "0.1.5"
+mini-redis = "0.4.1"
 quickcheck = "0.9.2"
+redis = "1.2.2"
+tiny_http = "0.12.0"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "net"] }
+tungstenite = "0.30.0"
+ureq = "3.4.2"
+
+[[bench]]
+name = "core"
+harness = false
 
 [[bench]]
 name = "http"
 harness = false
+required-features = ["http", "ws"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[[test]]
+name = "ws_interop"
+required-features = ["ws"]
+
+[[test]]
+name = "http_interop"
+required-features = ["http"]
